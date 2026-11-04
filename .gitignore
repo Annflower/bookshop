@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Env (секреты)
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Данные/логи
+*.log
+admin_orders.txt
+
+# Результаты аналитики (генерируются report.py/analyze.py — не храним в git)
+analysis/out/

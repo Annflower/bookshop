@@ -1,0 +1,1 @@
+"""bookshop_py — FastAPI бэкенд поверх существующей БД bookshop_full."""

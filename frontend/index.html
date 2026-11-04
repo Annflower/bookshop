@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚 BookVerse — Книжный магазин</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- Анимированный фон -->
+<div class="bg">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="grain"></div>
+</div>
+
+<!-- Плавающая кнопка корзины -->
+<button class="fab" id="fab-cart" onclick="showCart()" aria-label="Корзина">
+  <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="9" cy="21" r="1.6"></circle><circle cx="19" cy="21" r="1.6"></circle>
+    <path d="M2.5 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 2-1.6L21 7H5.1"></path>
+  </svg>
+  <span class="fab-badge" id="cart-count">0</span>
+</button>
+
+<!-- Тосты -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- Скелетон-оверлей загрузки -->
+<div class="loader" id="loader"><div class="ring"></div></div>
+
+<!-- Прелоадер-заставка -->
+<div class="splash" id="splash">
+  <div class="splash-logo">📚</div>
+  <div class="splash-name">BookVerse</div>
+  <div class="splash-bar"><span></span></div>
+</div>
+
+<!-- Прогресс скролла -->
+<div class="scroll-progress" id="scroll-progress"></div>
+
+<!-- Подсветка-прожектор за курсором -->
+<div class="cursor-spark" id="cursor-spark"></div>
+
+<!-- Кнопка "наверх" -->
+<button class="to-top" id="to-top" aria-label="Наверх">
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+</button>
+
+<main class="page">
+
+  <!-- Шапка (glass) -->
+  <header class="glass header reveal">
+    <div class="brand">
+      <div class="logo">📚</div>
+      <div class="brand-text">
+        <span class="brand-name">BookVerse</span>
+        <span class="brand-tag">книги, которые выбирают тебя</span>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#catalog" class="nav-link active" onclick="showCatalog();return false;">Каталог</a>
+      <button class="nav-link fav-nav" onclick="showFavorites()">❤️ <span class="fav-badge" id="fav-count">0</span></button>
+      <button class="nav-link" onclick="showAnalytics()">📊 Аналитика</button>
+      <div id="auth-area" class="auth-area"><!-- сюда JS рендерит вход/имя пользователя --></div>
+      <button id="go-checkout" class="btn btn-primary" onclick="showCheckout()">Оформить заказ</button>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero reveal">
+    <div class="hero-glow"></div>
+    <div class="float-books" aria-hidden="true">
+      <span class="fb fb-1">📕</span>
+      <span class="fb fb-2">📘</span>
+      <span class="fb fb-3">📗</span>
+      <span class="fb fb-4">📙</span>
+      <span class="fb fb-5">📓</span>
+    </div>
+    <div class="hero-content">
+      <span class="pill">✨ Тысячи историй ждут</span>
+      <h1>Читай. <span class="grad-text">Вдохновляйся.</span> Открывай миры.</h1>
+      <p>Новая коллекция художественной, учебной и детской литературы. Найди свою следующую любимую книгу.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary btn-lg" onclick="document.getElementById('catalog').scrollIntoView({behavior:'smooth'});">Смотреть каталог ↓</button>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><b id="stat-books">—</b><span>книг</span></div>
+      <div class="stat"><b id="stat-cats">—</b><span>категорий</span></div>
+      <div class="stat"><b>⭐</b><span>4.9 рейтинг</span></div>
+    </div>
+  </section>
+
+  <!-- Бегущая строка -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>📚 Классика</span><span>✦</span><span>🚀 Фантастика</span><span>✦</span><span>🧒 Детские</span><span>✦</span><span>🎓 Учебная</span><span>✦</span><span>💜 Бестселлеры</span><span>✦</span><span>📚 Классика</span><span>✦</span><span>🚀 Фантастика</span><span>✦</span><span>🧒 Детские</span><span>✦</span><span>🎓 Учебная</span><span>✦</span><span>💜 Бестселлеры</span><span>✦</span>
+    </div>
+  </div>
+
+  <!-- Мини-фичи -->
+  <section class="features reveal">
+    <div class="feature"><div class="f-ico">⚡</div><div><h4>Быстрая доставка</h4><p>по всей стране</p></div></div>
+    <div class="feature"><div class="f-ico">🔒</div><div><h4>Безопасная оплата</h4><p>данные защищены</p></div></div>
+    <div class="feature"><div class="f-ico">🎁</div><div><h4>Подарочная упаковка</h4><p>бесплатно</p></div></div>
+    <div class="feature"><div class="f-ico">↩️</div><div><h4>Возврат 14 дней</h4><p>без вопросов</p></div></div>
+  </section>
+
+  <!-- Каталог -->
+  <section id="catalog" class="section reveal">
+    <div class="section-head">
+      <h2>Каталог</h2>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input type="text" id="search" placeholder="Поиск по названию или автору..." onkeydown="if(event.key==='Enter')loadProducts()">
+        <button class="btn btn-ghost" onclick="loadProducts()">Поиск</button>
+      </div>
+    </div>
+    <div class="categories" id="categories"></div>
+    <div class="products" id="products"></div>
+  </section>
+
+  <!-- Избранное -->
+  <section id="favorites" class="section slide-panel">
+    <button class="btn btn-ghost back" onclick="showCatalog()">← К каталогу</button>
+    <h2>❤️ Избранное</h2>
+    <div class="products" id="fav-items"></div>
+  </section>
+
+  <!-- Аналитика (для владельца / разработчика / аналитика) -->
+  <section id="analytics" class="section slide-panel">
+    <button class="btn btn-ghost back" onclick="showCatalog()">← К каталогу</button>
+    <h2>📊 Аналитика</h2>
+    <div class="analytics-intro">
+      <p>Сводка по заказам, продажам, выручке, событиям, городам, отзывам и жалобам. Доступ только для администратора — войдите в аккаунт с ролью владельца.</p>
+      <div class="analytics-gate" id="analytics-gate">
+        <p class="analytics-gate-hint">Вы не вошли в аккаунт администратора. <a href="#" onclick="openAuth();return false;">Войти</a>, чтобы увидеть аналитику.</p>
+      </div>
+      <div class="analytics-error" id="analytics-error" style="display:none;"></div>
+    </div>
+    <div class="analytics-kpi" id="analytics-kpi" style="display:none;"></div>
+    <div class="analytics-tabs" id="analytics-tabs">
+      <button class="analytics-tab active" data-tab="orders">Заказы</button>
+      <button class="analytics-tab" data-tab="products">Товары</button>
+      <button class="analytics-tab" data-tab="revenue">Выручка</button>
+      <button class="analytics-tab" data-tab="cities">Города</button>
+      <button class="analytics-tab" data-tab="reviews">Отзывы</button>
+      <button class="analytics-tab" data-tab="events">События</button>
+      <button class="analytics-tab" data-tab="complaints">Жалобы</button>
+    </div>
+    <div class="analytics-body" id="analytics-body"><!-- сюда JS рендерит таблицу/карточки --></div>
+  </section>
+
+  <!-- Корзина -->
+  <section id="cart" class="section slide-panel">
+    <button class="btn btn-ghost back" onclick="showCatalog()">← К каталогу</button>
+    <h2>🛒 Корзина</h2>
+    <div class="cart-list" id="cart-items"></div>
+    <div class="cart-footer">
+      <div class="total" id="cart-total">Итого: 0 ₽</div>
+      <button class="btn btn-success btn-lg" onclick="showCheckout()">Оформить заказ →</button>
+    </div>
+  </section>
+
+  <!-- Чекаут -->
+  <section id="checkout" class="section slide-panel">
+    <button class="btn btn-ghost back" onclick="showCart()">← Назад в корзину</button>
+    <h2>📝 Оформление заказа</h2>
+    <div class="steps">
+      <div class="step active"><span class="s-num">1</span><span class="s-label">Корзина</span></div>
+      <div class="step-line"></div>
+      <div class="step active"><span class="s-num">2</span><span class="s-label">Данные</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="s-num">3</span><span class="s-label">Готово</span></div>
+    </div>
+    <div class="checkout-grid">
+      <div class="order-summary" id="checkout-summary"></div>
+      <form id="checkout-form" class="form-card">
+        <div class="form-group"><label>ФИО *</label><input type="text" name="name" required placeholder="Иван Иванов"></div>
+        <div class="form-group"><label>Email *</label><input type="email" name="email" required placeholder="you@mail.com"></div>
+        <div class="form-group"><label>Телефон *</label><input type="text" name="phone" required placeholder="+7 900 000-00-00"></div>
+        <div class="form-group"><label>Адрес доставки *</label><textarea name="address" required placeholder="Город, улица, дом, квартира"></textarea></div>
+        <button type="submit" class="btn btn-success btn-lg btn-block">✅ Подтвердить заказ</button>
+      </form>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>BookVerse · демо-магазин на FastAPI + MySQL</p>
+  </footer>
+
+</main>
+
+<!-- Модалка входа/регистрации -->
+<div class="modal-overlay" id="auth-modal" style="display:none;">
+  <div class="modal glass">
+    <button class="modal-close" onclick="closeAuth()" aria-label="Закрыть">×</button>
+    <div class="modal-brand">📚 BookVerse</div>
+    <div class="modal-tabs">
+      <button id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</button>
+      <button id="tab-register" class="tab" onclick="switchAuthTab('register')">Регистрация</button>
+    </div>
+    <div class="modal-body">
+      <!-- Логин -->
+      <form id="login-form" class="auth-form">
+        <div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="you@mail.com"></div>
+        <div class="form-group"><label>Пароль</label><input type="password" name="password" required placeholder="••••••••"></div>
+        <button type="submit" class="btn btn-success btn-block btn-lg">Войти</button>
+      </form>
+      <!-- Регистрация -->
+      <form id="register-form" class="auth-form" style="display:none;">
+        <div class="form-group"><label>Имя *</label><input type="text" name="name" required placeholder="Иван"></div>
+        <div class="form-group"><label>Email *</label><input type="email" name="email" required placeholder="you@mail.com"></div>
+        <div class="form-group"><label>Пароль *</label><input type="password" name="password" required minlength="6" placeholder="Минимум 6 символов"></div>
+        <button type="submit" class="btn btn-success btn-block btn-lg">Создать аккаунт</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка "Сообщить о проблеме с книгой" -->
+<div class="modal-overlay" id="complaint-modal" style="display:none;">
+  <div class="modal glass">
+    <button class="modal-close" onclick="closeComplaint()" aria-label="Закрыть">×</button>
+    <div class="modal-brand">📚 Сообщить о проблеме</div>
+    <div class="modal-body">
+      <form id="complaint-form" class="auth-form">
+        <div class="form-group"><label>Книга</label><input type="text" id="complaint-product" readonly></div>
+        <div class="form-group"><label>Ваше имя *</label><input type="text" name="name" required placeholder="Иван Иванов"></div>
+        <div class="form-group"><label>Email *</label><input type="email" name="email" required placeholder="you@mail.com"></div>
+        <div class="form-group"><label>Телефон</label><input type="text" name="phone" placeholder="+7 900 000-00-00"></div>
+        <div class="form-group"><label>Что случилось? *</label>
+          <select name="issue_type">
+            <option value="damage">Брак / повреждение</option>
+            <option value="wrong_item">Не та книга</option>
+            <option value="missing">Отсутствует часть (страницы/приложение)</option>
+            <option value="wrong_edition">Неверное издание/оформление</option>
+            <option value="other">Другое</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Опишите проблему *</label><textarea name="description" required placeholder="Опишите, что не так с книгой"></textarea></div>
+        <button type="submit" class="btn btn-success btn-block btn-lg">Отправить сообщение</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Плавающий ИИ-персонаж -->
+<button class="ai-fab" id="ai-fab" onclick="openAI()" aria-label="Спросить ИИ-помощника">
+  <div class="ai-avatar">🦉</div>
+  <span class="ai-badge">AI</span>
+  <span class="ai-tooltip">Спроси про книги</span>
+</button>
+
+<!-- Чат-модалка ИИ-помощника -->
+<div class="chat-overlay" id="ai-chat" style="display:none;">
+  <div class="chat-box glass">
+    <div class="chat-head">
+      <div class="chat-ai">🦉 <b>Bookie</b> <span class="chat-dot">спрашивает</span></div>
+      <button class="modal-close chat-close" onclick="closeAI()" aria-label="Закрыть">×</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="msg bot">
+        <div class="msg-av">🦉</div>
+        <div class="msg-bubble">Привет! Я Bookie — книжный помощник 👋<br>Напиши фразу из книги или опиши, о чём хочешь почитать — я найду подходящие книги.</div>
+      </div>
+    </div>
+    <div class="chat-chips" id="chat-chips">
+      <button class="chip" onclick="askAI('про космос и планеты')">🚀 про космос</button>
+      <button class="chip" onclick="askAI('учу английский с нуля')">🇬🇧 английский</button>
+      <button class="chip" onclick="askAI('3D мультфильм персонаж')">🎬 анимация</button>
+      <button class="chip" onclick="askAI('про любовь и чувства')">💕 романтика</button>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="ai-input" placeholder="Например: «Раскольников и его теория»" onkeydown="if(event.key==='Enter')sendAI()">
+      <button class="btn btn-primary btn-send" onclick="sendAI()">➤</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
