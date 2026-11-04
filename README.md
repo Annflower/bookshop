@@ -1,15 +1,70 @@
 # 📚 bookshop_py
 
-**FastAPI-бэкенд** книжного магазина + аналитики. Переиспользует существующую БД `bookshop_full` (та же схема, что и в PHP-версии) и предлагает **современный REST API + фронтенд на HTML/CSS/JS**. Это «вариант 3»: полный переезд backend на Python; PHP-проект (`bookshop_full/`) не тронут.
+![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-5.7-4479A1?style=flat-square&logo=mysql&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-Core-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-3.x-150458?style=flat-square&logo=pandas&logoColor=white)
+
+**Мой проект — интернет-магазин книг на FastAPI + MySQL, на котором я провела продуктовую аналитику.**
+
+> Это учебный e-commerce-проект, где главное — **продуктовый анализ данных**. Я построила бэкенд и наполнила базу реалистичными данными за полгода (заказы, покупатели, города, отзывы, повторные покупки), а затем провела на них аналитический разбор: посчитала метрики, построила гео-срезы, выявила проблемы и сформулировала гипотезы для A/B-тестов. Ниже — методика и главные выводы.
+
+## Что это и как устроено
 
 ```
-Браузер (HTML+JS)  ←→  FastAPI (Python)  ←→  MySQL (bookshop_full)
-   frontend/             app/main.py           уже существующая схема
+Браузер (HTML+JS)  →  FastAPI (Python)  →  MySQL (bookshop_full)
+   frontend/            app/main.py           уже существующая схема
 ```
 
-- **Backend:** FastAPI + SQLAlchemy Core (PyMySQL), Pydantic-валидация.
-- **Frontend:** простой `HTML+CSS+JS` (`frontend/`), ходит в API по JSON.
-- **БД:** та же `bookshop_full` (не пересоздаётся, только читается/пишется), дополнена для аналитики (см. [`docs/database.md`](docs/database.md)).
+Бэкенд (FastAPI + SQLAlchemy Core) отдаёт REST API и SPA-фронтенд, а поверх БД `bookshop_full` построен **аналитический слой**: админ-дашборд с KPI и CSV/графики через `analysis/` (pandas + matplotlib). Данные — за ~6 месяцев, как в реальном проекте.
+
+## Продуктовая аналитика — ядро проекта
+
+**Методика.** Данные выгружаются из БД в CSV (`report.py`), затем считаются метрики и строятся графики (`analyze.py` + `analyze.ipynb`). Считаю **e-commerce-метрики** (не B2B-SaaS): GMV, средний чек (среднее/медиана/σ), ARPPU/LTV, повторные покупки, гео, отмены и статусы.
+
+**Фактические цифры за ~6 месяцев:**
+
+| Метрика                                                      | Значение                                          |
+| ------------------------------------------------------------------- | --------------------------------------------------------- |
+| **GMV** (заказы кроме отменённых)        | **269 180 ₽**                                      |
+| Заказов (не отменённых) / Покупателей | 172 / 52                                                  |
+| **AOV** (средний чек)                               | **1 565 ₽** (медиана 1 280 ₽, σ 1 053 ₽) |
+| **ARPPU / LTV** (на покупателя)                   | **5 177 ₽** (медиана 4 890 ₽)              |
+| Среднее заказов на покупателя             | 3.31 (медиана 3)                                   |
+| Повторных покупателей (≥2 заказа)        | **78.8%** (41 из 52)                              |
+| Отменённых заказов                                 | 13 (7%)                                                   |
+
+**Главные выводы (что показал анализ):**
+
+1. **Выручка сконцентрирована** в нескольких городах (Ростов, Нижний, Челябинск, Новосибирск) малым числом покупателей — риск зависимости.
+   ![Топ городов по выручке](docs/images/chart_geo_revenue.png)
+2. **Август — провал** (19 заказов, ~34 тыс. ₽) на фоне июльского пика (63,9 тыс. ₽).
+   ![Выручка и заказы по месяцам](docs/images/chart_monthly_revenue.png)
+3. **Повторные покупки (78.8%)** — большинство покупателей возвращается (распределение по числу заказов на клиента).
+   ![Повторные покупки](docs/images/chart_repeat.png)
+4. **Операционно:** 56 заказов «ждут обработки» (`new`/`processing`), 13 отменённых — нет автоматического продвижения статусов.
+
+**Гипотезы для A/B-тестов** (сформулированы, не проведены — нужен живой трафик):
+промокод после первой покупки (метрика — повтор в m1), акция к августу (GMV августа), точечные акции в топ-городах (AOV города), автоматизация статусов (доля `completed` за 3 дня), достройка воронки через логирование `view_cart`/`checkout` (cart-abandonment).
+
+> **Важно про воронку.** Полную воронку `view → cart → order` по `event_log` построить нельзя: в журнале нет `view_cart`/`checkout`, а событий `add_to_cart` (89) меньше, чем `order_created` (185). Сейчас воронка оценивается по статусам заказов; полноценная cart-abandonment — после достройки логирования. Подробно — [`docs/analytics.md`](docs/analytics.md), [`analysis/analyze.ipynb`](analysis/analyze.ipynb).
+
+## Прочее, что уже реализовано
+
+| Что сделано                                                    | Суть                                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Единая авторизация с ролями user/dmin** | PBKDF2-пароли, подписанные HMAC-токены; аналитика и жалобы — только для dmin.                                                          |
+| **Семантический (ИИ) поиск**                   | Без внешних моделей: нормализация фразы + синонимы тем + idf-ранжирование.                                                      |
+| **Операционные фичи**                              | Избранное (идемпотентное), жалобы с эскалацией статусов (admin), заказ в транзакции с контролем остатка. |
+| **Инженерная обвязка**                            | Docker + docker-compose, .env/секреты, Swagger, параметризованные SQL, документация.                                                                 |
+
+## Стек
+
+- **Backend:** FastAPI + SQLAlchemy Core (PyMySQL) + Pydantic.
+- **Frontend:** SPA на чистом `HTML+CSS+JS` (fetch → JSON), тёмная glass-тема, анимации.
+- **Аналитика:** pandas + matplotlib, CSV-выгрузка из БД.
+- **БД:** MySQL `bookshop_full` (utf8mb4) — не пересоздаётся, дополняется миграциями.
 
 ---
 
@@ -23,52 +78,52 @@ copy .env.example .env        # указать DATABASE_URL и JWT_SECRET
 uvicorn app.main:app --reload --port 8000
 ```
 
-Открой `http://localhost:8000`. Swagger UI: `http://localhost:8000/docs`.
+Откройте `http://localhost:8000`. Swagger UI: `http://localhost:8000/docs`.
 
 ---
 
 ## Эндпоинты (сводка)
 
-| Метод | Путь | Auth | Описание |
-|-------|------|------|----------|
-| GET | `/api/products` | нет | Список товаров (`?category=`, `?q=`, `?limit=`, `?offset=`) |
-| GET | `/api/products/{id}` | нет | Карточка товара |
-| GET | `/api/categories` | нет | Категории |
-| POST | `/api/orders` | опц. | Создать заказ (в транзакции; `city?`) |
-| POST | `/api/ai/search` | нет | ИИ-поиск по смыслу (`query`, `limit`) |
-| GET | `/api/favorites` | да | Список избранного |
-| POST | `/api/favorites` | да | Добавить в избранное (`product_id`) |
-| DELETE | `/api/favorites/{id}` | да | Убрать из избранного |
-| GET | `/api/favorites/{id}` | да | Проверить, в избранном ли |
-| POST | `/api/complaints` | опц. | Подать жалобу о проблеме с книгой |
-| GET | `/api/complaints` | **admin** | Список жалоб |
-| PATCH | `/api/complaints/{id}` | **admin** | Сменить статус жалобы |
-| POST | `/api/auth/register` | нет | Регистрация |
-| POST | `/api/auth/login` | нет | Вход |
-| GET | `/api/auth/me` | да | Текущий пользователь |
-| GET | `/api/analytics/order-facts` | **admin** | Факты заказов |
-| GET | `/api/analytics/product-sales` | **admin** | Продажи по товарам |
-| GET | `/api/analytics/daily-revenue` | **admin** | Выручка по дням |
-| GET | `/api/analytics/event-log` | **admin** | Журнал событий |
-| GET | `/api/analytics/kpi` | **admin** | Сводные KPI |
-| GET | `/api/analytics/cities` | **admin** | Топ городов |
-| GET | `/api/analytics/reviews` | **admin** | Отзывы |
-| GET | `/api/health` | нет | Проверка БД |
+| Метод | Путь                         | Auth            | Описание                                                                 |
+| ---------- | -------------------------------- | --------------- | -------------------------------------------------------------------------------- |
+| GET        | `/api/products`                | нет          | Список товаров (`?category=`, `?q=`, `?limit=`, `?offset=`) |
+| GET        | `/api/products/{id}`           | нет          | Карточка товара                                                    |
+| GET        | `/api/categories`              | нет          | Категории                                                               |
+| POST       | `/api/orders`                  | опц.         | Создать заказ (в транзакции; `city?`)                   |
+| POST       | `/api/ai/search`               | нет          | ИИ-поиск по смыслу (`query`, `limit`)                         |
+| GET        | `/api/favorites`               | да            | Список избранного                                                |
+| POST       | `/api/favorites`               | да            | Добавить в избранное (`product_id`)                          |
+| DELETE     | `/api/favorites/{id}`          | да            | Убрать из избранного                                           |
+| GET        | `/api/favorites/{id}`          | да            | Проверить, в избранном ли                                   |
+| POST       | `/api/complaints`              | опц.         | Подать жалобу о проблеме с книгой                    |
+| GET        | `/api/complaints`              | **admin** | Список жалоб                                                          |
+| PATCH      | `/api/complaints/{id}`         | **admin** | Сменить статус жалобы                                         |
+| POST       | `/api/auth/register`           | нет          | Регистрация                                                           |
+| POST       | `/api/auth/login`              | нет          | Вход                                                                         |
+| GET        | `/api/auth/me`                 | да            | Текущий пользователь                                          |
+| GET        | `/api/analytics/order-facts`   | **admin** | Факты заказов                                                        |
+| GET        | `/api/analytics/product-sales` | **admin** | Продажи по товарам                                               |
+| GET        | `/api/analytics/daily-revenue` | **admin** | Выручка по дням                                                     |
+| GET        | `/api/analytics/event-log`     | **admin** | Журнал событий                                                      |
+| GET        | `/api/analytics/kpi`           | **admin** | Сводные KPI                                                               |
+| GET        | `/api/analytics/cities`        | **admin** | Топ городов                                                            |
+| GET        | `/api/analytics/reviews`       | **admin** | Отзывы                                                                     |
+| GET        | `/api/health`                  | нет          | Проверка БД                                                            |
 
 **Auth:** заголовок `Authorization: Bearer <token>`. Роль `admin` даёт доступ к аналитике и обработке жалоб. Все подробности — [`docs/api.md`](docs/api.md).
 
 ---
 
-## Чем отличается от PHP-версии
+## Стек
 
-| Аспект | PHP `bookshop_full` | Python `bookshop_py` |
-|--------|---------------------|----------------------|
-| Backend | PHP 5.3+ (PDO) | **Python 3.12+ (FastAPI)** |
-| БД | MySQL `bookshop_full` | **та же MySQL `bookshop_full`** |
-| API | `api/*.php` | **FastAPI-эндпоинты** |
-| Frontend | серверный HTML | **HTML+JS (fetch → JSON)** |
-| Авторизация | `admins` (bcrypt) + API-токен | **единый вход по ролям (`users.role`)** |
-| Аналитика | витрины + экспорт | **витрины + KPI + города + отзывы** |
+| Аспект           | Python `bookshop_py`                                           |
+| ---------------------- | ---------------------------------------------------------------- |
+| Backend                | **Python 3.12+ (FastAPI)**                                 |
+| БД                   | **та же MySQL `bookshop_full`**                      |
+| API                    | **FastAPI-эндпоинты**                             |
+| Frontend               | **HTML+JS (fetch → JSON)**                                |
+| Авторизация | **единый вход по ролям (`users.role`)** |
+| Аналитика     | **витрины + KPI + города + отзывы**     |
 
 Подробно: [`docs/architecture.md`](docs/architecture.md), [`docs/auth-roles.md`](docs/auth-roles.md).
 
@@ -102,100 +157,17 @@ bookshop_py/
 
 ## Документация
 
-| Документ | Содержание |
-|----------|------------|
-| [`docs/requirements/requirements.md`](docs/requirements/requirements.md) | **Функциональные (FR)** и **нефункциональные (NFR)** требования, роли, критерии приёмки |
-| [`docs/requirements/user-stories.md`](docs/requirements/user-stories.md) | User stories по ролям + матрица покрытия US→FR |
-| [`docs/requirements/use-cases.md`](docs/requirements/use-cases.md) | Варианты использования (UC) с потоками и API |
-| [`docs/requirements/bpmn.md`](docs/requirements/bpmn.md) | **BPMN-диаграммы** ключевых процессов (Mermaid) |
-| [`docs/architecture.md`](docs/architecture.md) | Архитектура: слои, компоненты, потоки данных |
-| [`docs/api.md`](docs/api.md) | Все REST-эндпоинты, тела запросов, коды статусов |
-| [`docs/database-schema.md`](docs/database-schema.md) | ERD + полный словарь данных (таблицы, поля, связи) |
-| [`docs/database.md`](docs/database.md) | Миграции проекта, демо-данные, владелец-админ |
-| [`docs/auth-roles.md`](docs/auth-roles.md) | Вход, роли `user`/`admin`, как зайти в аналитику |
-| [`docs/analytics.md`](docs/analytics.md) | KPI, вкладки, гео, отзывы, выгрузка для DS |
-| [`docs/setup.md`](docs/setup.md) | Запуск, `.env`, Docker, деплой, безопасность |
-| [`docs/roadmap.md`](docs/roadmap.md) | Что сделано / в планах (фазы, приоритеты) |
-
-**С чего начать:** впервые в проекте → [`docs/architecture.md`](docs/architecture.md) + [`docs/database-schema.md`](docs/database-schema.md); запустить → [`docs/setup.md`](docs/setup.md); аналитику → [`docs/analytics.md`](docs/analytics.md) + [`docs/auth-roles.md`](docs/auth-roles.md); API → [`docs/api.md`](docs/api.md).
-
----
-
-## Ключевые особенности
-
-- **Аналитика — через вход администратора.** Нет отдельного входа админа: зайдите обычным «Войти» аккаунтом с ролью `admin`. Демо-владелец: `owner@bookverse.ru` / `owner123456`. Подробно — [`docs/auth-roles.md`](docs/auth-roles.md).
-- **Данные за ~полгода** для аналитики как в реальном проекте (города, отзывы, повторные покупки) — [`docs/analytics.md`](docs/analytics.md), [`docs/database.md`](docs/database.md).
-- **Избранное и жалобы** — публичные (создание жалобы) и авторизованные (избранное, админ-жалобы) фичи.
-- **ИИ-поиск** по смыслу (без внешних моделей): нормализация фразы + синонимы тем + idf-ранжирование.
-
-## Миграции БД
-
-Проект дополняет базовую схему `bookshop_full`:
-- `users.password_hash`, `users.role`, `users.city`, `orders.city`, таблицы `favorites`, `reviews`, `complaints`.
-
-Отдельный SQL-файл — [`db/favorites.sql`](db/favorites.sql) (идемпотентно):
-```bash
-mysql -u root -p < db/favorites.sql
-```
-Полные DDL всех миграций — [`docs/database.md`](docs/database.md); описание схемы — [`docs/database-schema.md`](docs/database-schema.md).
-
----
-
-## Аналитика и DS
-
-Витрины `v_order_facts`, `v_product_sales`, `v_daily_revenue`, `v_event_log` доступны через защищённые эндпоинты. Из Python (нужны `pandas` + `pymysql`):
-
-```python
-import pandas as pd, pymysql
-conn = pymysql.connect(host='localhost', user='root', password='',
-                       db='bookshop_full', charset='utf8mb4')
-order_facts = pd.read_sql("SELECT * FROM v_order_facts", conn)
-daily = pd.read_sql("SELECT * FROM v_daily_revenue", conn)
-conn.close()
-```
-
-**Или готовый скрипт** (без pandas, только PyMySQL):
-```bash
-.venv\Scripts\python.exe analysis\report.py   # выгрузит CSV + напечатает KPI
-```
-Подробно — [`docs/analytics.md`](docs/analytics.md).
-
----
-
-## Деплой «в облако» (Docker)
-
-Вариант A — **Railway / Render / Fly.io**:
-1. Залейте репозиторий на GitHub.
-2. Создайте сервис из `Dockerfile`.
-3. Укажите `DATABASE_URL` и `JWT_SECRET` в переменных окружения платформы.
-4. Платформа поднимет приложение по адресу вида `https://<app>.<platform>.com`.
-
-Вариант B — **docker-compose** (локально с БД):
-```bash
-docker compose up -d --build
-```
-Compose поднимает `app` (порт 8000) и `db` (MySQL 5.7), инициализируя БД из `../bookshop_full/database.sql`. Подробности — [`docs/setup.md`](docs/setup.md).
-
----
-
-## Безопасность
-
-- Все SQL-запросы — параметризованные (SQLAlchemy Core), без конкатенации.
-- Пароли — PBKDF2-HMAC-SHA256 (сравнение в постоянном времени).
-- Токены — самоподписанные HMAC-SHA256 (`JWT_SECRET`), секреты в `.env`.
-- Аналитика и админ-жалобы — только для `role == 'admin'`.
-
-## Быстрые факты
-
-- **Стек:** FastAPI + SQLAlchemy Core + PyMySQL, SPA на HTML/CSS/JS.
-- **БД:** `bookshop_full` (MySQL, utf8mb4), дополнена `role`, `city`, `favorites`, `reviews`, `complaints`.
-- **Аналитика:** только для `role = 'admin'` (единый вход, без отдельного API-токена).
-- **Swagger:** `http://localhost:8000/docs`.
-
-## Что дальше
-
-- Пагинация каталога/заказов.
-- Дашборд с графиками (Chart.js), экспорт в Parquet, пайплайн в DuckDB/pandas.
-- Тесты (pytest) + CI.
-
-Полный план — [`docs/roadmap.md`](docs/roadmap.md).
+| Документ                                                      | Содержание                                                                                                                                            |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/requirements/requirements.md](docs/requirements/requirements.md) | **Функциональные (FR)** и **нефункциональные (NFR)** требования, роли, критерии приёмки |
+| [docs/requirements/user-stories.md](docs/requirements/user-stories.md) | User stories по ролям + матрица покрытия US→FR                                                                                           |
+| [docs/requirements/use-cases.md](docs/requirements/use-cases.md)       | Варианты использования (UC) с потоками и API                                                                                     |
+| [docs/requirements/bpmn.md](docs/requirements/bpmn.md)                 | **BPMN-диаграммы** ключевых процессов (Mermaid)                                                                                 |
+| [docs/architecture.md](docs/architecture.md)                           | Архитектура: слои, компоненты, потоки данных                                                                               |
+| [docs/api.md](docs/api.md)                                             | Все REST-эндпоинты, тела запросов, коды статусов                                                                            |
+| [docs/database-schema.md](docs/database-schema.md)                     | ERD + полный словарь данных (таблицы, поля, связи)                                                                           |
+| [docs/database.md](docs/database.md)                                   | Миграции проекта, демо-данные, владелец-админ                                                                             |
+| [docs/auth-roles.md](docs/auth-roles.md)                               | Вход, роли user/dmin, как зайти в аналитику                                                                                          |
+| [docs/analytics.md](docs/analytics.md)                                 | KPI, вкладки, гео, отзывы, выгрузка для DS                                                                                           |
+| [docs/setup.md](docs/setup.md)                                         | Запуск, .env, Docker, деплой, безопасность                                                                                              |
+| [docs/roadmap.md](docs/roadmap.md)                                     | Что сделано / в планах (фазы, приоритеты)                                                                                        |
